@@ -1,0 +1,168 @@
+const express = require('express');
+const mongoose = require('mongoose');
+
+const app = express();
+const PORT = 3000;
+
+// Middleware to parse JSON
+app.use(express.json());
+
+// Connect to MongoDB
+mongoose.connect('mongodb://localhost:27017/productdb', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// Define Product Schema
+const productSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true
+    },
+    price: {
+        type: Number,
+        required: true
+    },
+    category: {
+        type: String,
+        required: true
+    }
+});
+
+// Create Product Model
+const Product = mongoose.model('Product', productSchema);
+
+// GET all products
+app.get('/products', async (req, res) => {
+    try {
+        const products = await Product.find();
+        res.status(200).json(products);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching products', error: error.message });
+    }
+});
+
+// GET single product by ID
+app.get('/products/:id', async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        res.status(200).json(product);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching product', error: error.message });
+    }
+});
+
+// POST create new product
+app.post('/products', async (req, res) => {
+    try {
+        const { name, price, category } = req.body;
+
+        // Validation
+        if (!name || !price || !category) {
+            return res.status(400).json({ 
+                message: 'Name, price, and category are required' 
+            });
+        }
+
+        const product = new Product({
+            name,
+            price,
+            category
+        });
+
+        const savedProduct = await product.save();
+        res.status(201).json(savedProduct);
+    } catch (error) {
+        res.status(500).json({ 
+            message: 'Error creating product', 
+            error: error.message 
+        });
+    }
+});
+
+// PUT update product by ID
+app.put('/products/:id', async (req, res) => {
+    try {
+        const { name, price, category } = req.body;
+
+        const updatedProduct = await Product.findByIdAndUpdate(
+            req.params.id,
+            { name, price, category },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedProduct) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        res.status(200).json(updatedProduct);
+    } catch (error) {
+        res.status(500).json({ 
+            message: 'Error updating product', 
+            error: error.message 
+        });
+    }
+});
+
+// DELETE product by ID
+app.delete('/products/:id', async (req, res) => {
+    try {
+        const deletedProduct = await Product.findByIdAndDelete(req.params.id);
+
+        if (!deletedProduct) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        res.status(200).json({
+            message: 'Product deleted',
+            product: deletedProduct
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            message: 'Error deleting product', 
+            error: error.message 
+        });
+    }
+});
+
+// Add some sample data on server start
+async function initializeSampleData() {
+    try {
+        const existingProducts = await Product.find();
+        if (existingProducts.length === 0) {
+            await Product.insertMany([
+                {
+                    name: "Laptop",
+                    price: 1200,
+                    category: "Electronics"
+                },
+                {
+                    name: "Wireless Mouse",
+                    price: 25,
+                    category: "Accessories"
+                },
+                {
+                    name: "Notebook",
+                    price: 5,
+                    category: "Stationery"
+                }
+            ]);
+            console.log('Sample products added to database');
+        }
+    } catch (error) {
+        console.error('Error initializing sample data:', error);
+    }
+}
+
+// Start server
+app.listen(PORT, async () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+    await initializeSampleData();
+});
+
+module.exports = app;
