@@ -1,0 +1,509 @@
+// app.js - Complete E-commerce Catalog Application
+const express = require('express');
+const mongoose = require('mongoose');
+
+const app = express();
+const PORT = 3000;
+
+// Middleware
+app.use(express.json());
+
+// MongoDB connection
+mongoose.connect('mongodb://localhost:27017/ecommerce', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// Product Schema with nested variants
+const variantSchema = new mongoose.Schema({
+    color: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    size: {
+        type: String,
+        required: true
+    },
+    stock: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    sku: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    price: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    images: [String]
+});
+
+const productSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: [true, 'Product name is required'],
+        trim: true,
+        maxlength: 100
+    },
+    description: {
+        type: String,
+        required: true,
+        maxlength: 1000
+    },
+    basePrice: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    category: {
+        type: String,
+        required: true,
+        enum: ['Electronics', 'Clothing', 'Books', 'Home & Garden', 'Sports', 'Toys']
+    },
+    brand: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    tags: [String],
+    variants: [variantSchema],
+    averageRating: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+}, {
+    timestamps: true
+});
+
+// Create indexes for better performance
+productSchema.index({ category: 1 });
+productSchema.index({ brand: 1 });
+productSchema.index({ tags: 1 });
+productSchema.index({ 'variants.sku': 1 });
+
+const Product = mongoose.model('Product', productSchema);
+
+// ========== CONTROLLER FUNCTIONS ==========
+
+// Insert sample products
+const insertSampleProducts = async () => {
+    try {
+        await Product.deleteMany({});
+        
+        const sampleProducts = [
+            {
+                name: "iPhone 15 Pro",
+                description: "Latest Apple smartphone with advanced camera system",
+                basePrice: 999,
+                category: "Electronics",
+                brand: "Apple",
+                tags: ["smartphone", "apple", "5g", "premium"],
+                variants: [
+                    {
+                        color: "Titanium Black",
+                        size: "128GB",
+                        stock: 50,
+                        sku: "IP15P-BLK-128",
+                        price: 999,
+                        images: ["iphone_black1.jpg", "iphone_black2.jpg"]
+                    },
+                    {
+                        color: "Titanium White",
+                        size: "256GB",
+                        stock: 30,
+                        sku: "IP15P-WHT-256",
+                        price: 1099,
+                        images: ["iphone_white1.jpg", "iphone_white2.jpg"]
+                    },
+                    {
+                        color: "Titanium Blue",
+                        size: "512GB",
+                        stock: 15,
+                        sku: "IP15P-BLU-512",
+                        price: 1299,
+                        images: ["iphone_blue1.jpg", "iphone_blue2.jpg"]
+                    }
+                ],
+                averageRating: 4.8
+            },
+            {
+                name: "Nike Air Max 270",
+                description: "Comfortable running shoes with Air Max technology",
+                basePrice: 150,
+                category: "Clothing",
+                brand: "Nike",
+                tags: ["shoes", "running", "sports", "comfort"],
+                variants: [
+                    {
+                        color: "Black/White",
+                        size: "US 9",
+                        stock: 25,
+                        sku: "NAM270-BW-9",
+                        price: 150,
+                        images: ["nike_bw1.jpg"]
+                    },
+                    {
+                        color: "Black/White",
+                        size: "US 10",
+                        stock: 20,
+                        sku: "NAM270-BW-10",
+                        price: 150,
+                        images: ["nike_bw1.jpg"]
+                    },
+                    {
+                        color: "Red/Black",
+                        size: "US 9",
+                        stock: 18,
+                        sku: "NAM270-RB-9",
+                        price: 150,
+                        images: ["nike_rb1.jpg"]
+                    },
+                    {
+                        color: "Blue/White",
+                        size: "US 11",
+                        stock: 12,
+                        sku: "NAM270-BLW-11",
+                        price: 150,
+                        images: ["nike_blw1.jpg"]
+                    }
+                ],
+                averageRating: 4.5
+            },
+            {
+                name: "The Great Gatsby",
+                description: "Classic American novel by F. Scott Fitzgerald",
+                basePrice: 12,
+                category: "Books",
+                brand: "Penguin Classics",
+                tags: ["fiction", "classic", "literature"],
+                variants: [
+                    {
+                        color: "Paperback",
+                        size: "Standard",
+                        stock: 100,
+                        sku: "GG-PB-STD",
+                        price: 12,
+                        images: ["gatsby_pb.jpg"]
+                    },
+                    {
+                        color: "Hardcover",
+                        size: "Standard",
+                        stock: 40,
+                        sku: "GG-HC-STD",
+                        price: 25,
+                        images: ["gatsby_hc.jpg"]
+                    },
+                    {
+                        color: "E-book",
+                        size: "Digital",
+                        stock: 999,
+                        sku: "GG-EB-DIG",
+                        price: 8,
+                        images: ["gatsby_ebook.jpg"]
+                    }
+                ],
+                averageRating: 4.7
+            },
+            {
+                name: "Gaming Laptop",
+                description: "High-performance gaming laptop with RTX graphics",
+                basePrice: 1200,
+                category: "Electronics",
+                brand: "ASUS",
+                tags: ["gaming", "laptop", "rtx", "gaming"],
+                variants: [
+                    {
+                        color: "Black",
+                        size: "16GB RAM, 512GB SSD",
+                        stock: 15,
+                        sku: "GL-BLK-16-512",
+                        price: 1200,
+                        images: ["laptop_black1.jpg"]
+                    },
+                    {
+                        color: "Black",
+                        size: "32GB RAM, 1TB SSD",
+                        stock: 8,
+                        sku: "GL-BLK-32-1T",
+                        price: 1500,
+                        images: ["laptop_black1.jpg"]
+                    },
+                    {
+                        color: "Gray",
+                        size: "16GB RAM, 1TB SSD",
+                        stock: 10,
+                        sku: "GL-GRY-16-1T",
+                        price: 1300,
+                        images: ["laptop_gray1.jpg"]
+                    }
+                ],
+                averageRating: 4.6
+            }
+        ];
+
+        await Product.insertMany(sampleProducts);
+        console.log('Sample products inserted successfully!');
+    } catch (error) {
+        console.error('Error inserting sample products:', error);
+    }
+};
+
+// ========== ROUTES ==========
+
+// Get all products
+app.get('/products', async (req, res) => {
+    try {
+        const products = await Product.find({ isActive: true });
+        res.json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching products',
+            error: error.message
+        });
+    }
+});
+
+// Get products by category
+app.get('/products/category/:category', async (req, res) => {
+    try {
+        const products = await Product.find({ 
+            category: req.params.category,
+            isActive: true 
+        });
+        res.json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching products by category',
+            error: error.message
+        });
+    }
+});
+
+// Get product with specific variant details
+app.get('/products/variants/:sku', async (req, res) => {
+    try {
+        const product = await Product.findOne({
+            'variants.sku': req.params.sku,
+            isActive: true
+        });
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product or variant not found'
+            });
+        }
+
+        // Find the specific variant
+        const variant = product.variants.find(v => v.sku === req.params.sku);
+        
+        res.json({
+            success: true,
+            data: {
+                product: {
+                    name: product.name,
+                    brand: product.brand,
+                    category: product.category
+                },
+                variant: variant
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching variant details',
+            error: error.message
+        });
+    }
+});
+
+// Get products with low stock variants
+app.get('/products/low-stock/:threshold', async (req, res) => {
+    try {
+        const threshold = parseInt(req.params.threshold);
+        const products = await Product.find({
+            'variants.stock': { $lte: threshold },
+            isActive: true
+        });
+
+        res.json({
+            success: true,
+            count: products.length,
+            threshold: threshold,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching low stock products',
+            error: error.message
+        });
+    }
+});
+
+// Get products by color variant
+app.get('/products/color/:color', async (req, res) => {
+    try {
+        const products = await Product.find({
+            'variants.color': new RegExp(req.params.color, 'i'),
+            isActive: true
+        });
+
+        res.json({
+            success: true,
+            count: products.length,
+            color: req.params.color,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching products by color',
+            error: error.message
+        });
+    }
+});
+
+// Update variant stock
+app.patch('/products/variants/:sku/stock', async (req, res) => {
+    try {
+        const { stock } = req.body;
+        
+        const result = await Product.findOneAndUpdate(
+            { 'variants.sku': req.params.sku },
+            { $set: { 'variants.$.stock': stock } },
+            { new: true }
+        );
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Variant not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Stock updated successfully',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error updating stock',
+            error: error.message
+        });
+    }
+});
+
+// Add new variant to product
+app.post('/products/:productId/variants', async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.productId);
+        
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        product.variants.push(req.body);
+        await product.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Variant added successfully',
+            data: product
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error adding variant',
+            error: error.message
+        });
+    }
+});
+
+// Get products with projected variant details
+app.get('/products/projected/variants', async (req, res) => {
+    try {
+        const products = await Product.find(
+            { isActive: true },
+            { 
+                name: 1, 
+                brand: 1, 
+                category: 1,
+                'variants.color': 1, 
+                'variants.size': 1, 
+                'variants.stock': 1,
+                'variants.price': 1 
+            }
+        );
+
+        res.json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching projected products',
+            error: error.message
+        });
+    }
+});
+
+// Home route with query examples
+app.get('/', (req, res) => {
+    res.json({
+        message: 'E-commerce Catalog API with Nested Documents',
+        endpoints: {
+            getAllProducts: 'GET /products',
+            getByCategory: 'GET /products/category/:category',
+            getVariantDetails: 'GET /products/variants/:sku',
+            getLowStock: 'GET /products/low-stock/:threshold',
+            getByColor: 'GET /products/color/:color',
+            updateStock: 'PATCH /products/variants/:sku/stock',
+            addVariant: 'POST /products/:productId/variants',
+            projectedVariants: 'GET /products/projected/variants'
+        },
+        exampleQueries: [
+            'GET /products/category/Electronics',
+            'GET /products/variants/IP15P-BLK-128',
+            'GET /products/low-stock/10',
+            'GET /products/color/black',
+            'GET /products/projected/variants'
+        ]
+    });
+});
+
+// Start server and initialize data
+app.listen(PORT, async () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    await insertSampleProducts();
+});
